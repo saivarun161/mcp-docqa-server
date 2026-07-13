@@ -11,8 +11,8 @@ build/
 .env
 
 # Runtime artifacts: fetched corpora + local indexes
-# (the bundled demo corpus ships inside src/docqa/data)
-data/
+# (the bundled demo corpus in src/docqa/data IS tracked)
+/data/
 *.log
 
 # Tooling caches
