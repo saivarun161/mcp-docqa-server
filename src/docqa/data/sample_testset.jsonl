@@ -1,0 +1,12 @@
+{"question": "What blood pressure reading counts as stage 2 hypertension?", "expected_doc_id": "sample-001"}
+{"question": "How do GLP-1 receptor agonists like semaglutide help in type 2 diabetes?", "expected_doc_id": "sample-002"}
+{"question": "What actions are included in the hour-1 sepsis bundle?", "expected_doc_id": "sample-003"}
+{"question": "Do statins reduce the risk of heart attack and stroke?", "expected_doc_id": "sample-004"}
+{"question": "What counts as protected health information under HIPAA?", "expected_doc_id": "sample-005"}
+{"question": "What is ICD-10 coding used for in medical billing?", "expected_doc_id": "sample-006"}
+{"question": "What are the main limitations of telehealth visits?", "expected_doc_id": "sample-007"}
+{"question": "Why do insurers require prior authorization and how does it delay care?", "expected_doc_id": "sample-008"}
+{"question": "What is antimicrobial stewardship and why does antibiotic resistance spread?", "expected_doc_id": "sample-009"}
+{"question": "How can you tell influenza apart from COVID-19?", "expected_doc_id": "sample-010"}
+{"question": "How does HL7 FHIR improve interoperability between EHR systems?", "expected_doc_id": "sample-011"}
+{"question": "What happens in each phase of a clinical trial?", "expected_doc_id": "sample-012"}
