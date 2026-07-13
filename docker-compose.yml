@@ -1,0 +1,19 @@
+# Postgres with the pgvector extension preinstalled.
+# Start it with:  docker compose up -d
+# Stop it with:   docker compose down        (add -v to also wipe the data)
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: docqa-postgres
+    environment:
+      POSTGRES_USER: docqa
+      POSTGRES_PASSWORD: docqa
+      POSTGRES_DB: docqa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  pgdata:

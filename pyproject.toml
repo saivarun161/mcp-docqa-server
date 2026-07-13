@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-docqa-server"
+version = "0.1.0"
+description = "An MCP server that gives any AI client semantic search over a document corpus — the retrieval half of a RAG pipeline, shipped as reusable infrastructure."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Varun Kammadanam", email = "kammadanamsaivarun@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["mcp", "rag", "semantic-search", "pgvector", "embeddings", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "mcp>=1.2",
+    "numpy>=1.24",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.30"]
+pg = ["psycopg[binary]>=3.1", "pgvector>=0.2.5"]
+dev = [
+    "pytest>=8.0",
+    "anyio>=4.0",
+    "ruff>=0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/saivarun161/mcp-docqa-server"
+Issues = "https://github.com/saivarun161/mcp-docqa-server/issues"
+
+[project.scripts]
+docqa-server = "docqa.server:main"
+docqa-ingest = "docqa.ingest.cli:main"
+docqa-eval = "docqa.eval.run_eval:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/docqa"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+markers = [
+    "pgvector: integration tests that need a running Postgres with pgvector (set DATABASE_URL)",
+]

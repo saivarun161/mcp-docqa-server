@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Env / secrets
+.env
+
+# Runtime artifacts: fetched corpora + local indexes
+# (the bundled demo corpus ships inside src/docqa/data)
+data/
+*.log
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.claude/
+
+# OS
+.DS_Store
+
+# Local-only experiments, not part of this Python project
+web/
