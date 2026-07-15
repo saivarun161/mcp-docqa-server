@@ -3,12 +3,15 @@
 Search runs inside the database against an HNSW index (cosine distance), so it
 scales past what brute force handles and inherits Postgres durability,
 backups, and concurrent access. Start one locally with `docker compose up -d`.
+
+The lexical leg of hybrid retrieval runs on Postgres full-text search: a
+generated ``tsvector`` column with a GIN index, ranked by ``ts_rank_cd``.
 """
 
 import numpy as np
 
 from ..models import Chunk, Document, SearchResult
-from .base import DIM_META_KEY, VectorStore
+from .base import DIM_META_KEY, VectorStore, tokenize_query
 
 
 class PgVectorStore(VectorStore):
@@ -62,6 +65,14 @@ class PgVectorStore(VectorStore):
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw "
             "ON chunks USING hnsw (embedding vector_cosine_ops)"
+        )
+        # Lexical leg: generated tsvector column (auto-backfills existing rows).
+        self._conn.execute(
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS text_tsv tsvector "
+            "GENERATED ALWAYS AS (to_tsvector('english', text)) STORED"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS chunks_text_tsv_gin ON chunks USING gin (text_tsv)"
         )
         self._conn.execute(
             """
@@ -140,6 +151,32 @@ class PgVectorStore(VectorStore):
             "FROM chunks c JOIN docs d ON d.doc_id = c.doc_id "
             "ORDER BY score DESC LIMIT %s",
             (vector.astype(np.float32), k),
+        ).fetchall()
+        return [
+            SearchResult(
+                doc_id=row[0],
+                chunk_index=row[1],
+                title=row[2],
+                url=row[3],
+                text=row[4],
+                score=round(float(row[5]), 4),
+            )
+            for row in rows
+        ]
+
+    def lexical_search(self, query: str, k: int) -> list[SearchResult]:
+        tokens = tokenize_query(query)
+        if not tokens:
+            return []
+        # OR semantics; tokens are pure [a-z0-9] so the tsquery string is inert.
+        tsquery = " | ".join(tokens)
+        rows = self._conn.execute(
+            "SELECT c.doc_id, c.chunk_index, d.title, d.url, c.text, "
+            "       ts_rank_cd(c.text_tsv, q) AS score "
+            "FROM chunks c JOIN docs d ON d.doc_id = c.doc_id, "
+            "     to_tsquery('english', %s) q "
+            "WHERE c.text_tsv @@ q ORDER BY score DESC LIMIT %s",
+            (tsquery, k),
         ).fetchall()
         return [
             SearchResult(

@@ -5,6 +5,7 @@ Both backends persist the same three things: full documents (for
 metadata table that records which embedder built the index.
 """
 
+import re
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -13,6 +14,14 @@ from ..models import Chunk, Document, SearchResult
 
 EMBEDDER_META_KEY = "embedder_id"
 DIM_META_KEY = "embedding_dim"
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def tokenize_query(query: str) -> list[str]:
+    """Lowercase alphanumeric tokens — safe to splice into FTS/tsquery syntax
+    because nothing but [a-z0-9] survives."""
+    return _TOKEN_RE.findall(query.lower())
 
 
 class VectorStore(ABC):
@@ -47,6 +56,16 @@ class VectorStore(ABC):
     @abstractmethod
     def search(self, vector: np.ndarray, k: int) -> list[SearchResult]:
         """Top-k chunks by cosine similarity to a unit-norm query vector."""
+
+    @abstractmethod
+    def lexical_search(self, query: str, k: int) -> list[SearchResult]:
+        """Top-k chunks by keyword relevance (BM25/ts_rank) over the chunk text.
+
+        The lexical leg of hybrid retrieval: catches exact terms — identifiers,
+        drug names, error codes — that embeddings can miss. Matching is OR
+        semantics over the query's tokens, ranked by the backend's native
+        full-text scorer.
+        """
 
     @abstractmethod
     def get_document(self, doc_id: str) -> Document | None: ...
