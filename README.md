@@ -27,7 +27,8 @@ Most RAG demos hard-wire retrieval into one chatbot. Exposing retrieval through 
 ## Features
 
 - **Four typed MCP tools** — `search_documents`, `fetch_document`, `corpus_stats`, `ping` — with docstrings written for the calling model, because tool descriptions *are* the interface.
-- **Two vector stores, one contract**: embedded **SQLite** (zero infrastructure, exact brute-force cosine) and **Postgres + pgvector** (HNSW index, production posture). Both pass the same behavioral test battery.
+- **Hybrid retrieval by default**: semantic (vector) and keyword (BM25 / Postgres FTS) search fused with Reciprocal Rank Fusion, so exact terms embeddings blur — identifiers, drug names, error codes — still land. Callers can force `vector` or `lexical` per query.
+- **Two vector stores, one contract**: embedded **SQLite** (zero infrastructure, exact brute-force cosine + FTS5) and **Postgres + pgvector** (HNSW index + GIN full-text, production posture). Both pass the same behavioral test battery.
 - **Pluggable embeddings**: OpenAI `text-embedding-3-small`, or a deterministic keyless hashing embedder so a fresh clone works with **no API key, no database, no network**.
 - **Idempotent ingestion**: per-document content hashes mean re-runs skip unchanged docs — nothing gets re-embedded (or re-billed) by accident.
 - **Corpus fetcher** for PubMed abstracts via the keyless NCBI E-utilities API (rate-limit aware).
@@ -103,17 +104,19 @@ docker build -t mcp-docqa-server . && docker run -p 8000:8000 mcp-docqa-server
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `search_documents` | `query`, `k=5` | top-k chunks with `doc_id`, `title`, `url`, `text`, `score` |
+| `search_documents` | `query`, `k=5`, `mode="hybrid"` | top-k chunks with `doc_id`, `title`, `url`, `text`, `score` |
 | `fetch_document` | `doc_id` | the full source document |
 | `corpus_stats` | — | doc/chunk counts, backend, embedder that built the index |
 | `ping` | — | `"pong"` (connectivity check) |
+
+`mode` selects the retrieval strategy: `hybrid` (default) fuses both legs, `vector` is semantic-only (best for paraphrased/conceptual questions), `lexical` is keyword-only (best when an exact term must appear).
 
 ## Retrieval quality
 
 `docqa-eval` retrieves for every testset question and reports where the expected document ranked:
 
 ```text
-Retrieval eval — 12 questions, k=5
+Retrieval eval — 12 questions, k=5, mode=hybrid
 store=sqlite  embedder=hash-v1-512
 
   [rank 1] What blood pressure reading counts as stage 2 hypertension?  (expects sample-001)
@@ -121,10 +124,11 @@ store=sqlite  embedder=hash-v1-512
 recall@1=1.00  recall@3=1.00  recall@5=1.00  MRR=1.00
 ```
 
-The bundled corpus is small and topically distinct, so even the lexical fallback embedder scores perfectly — that run proves the *plumbing*. The interesting experiments start when you index a few hundred PubMed abstracts and compare `hash` vs `openai` embeddings on your own testset; CI runs the eval against a live pgvector container and fails the build if recall@5 drops below 0.9.
+Pass `--mode vector|lexical|hybrid` to compare retrieval strategies on the same testset. The bundled corpus is small and topically distinct, so every mode scores perfectly — that run proves the *plumbing*. The interesting experiments start when you index a few hundred PubMed abstracts and compare `hash` vs `openai` embeddings, or `vector` vs `hybrid`, on your own testset; CI runs the eval against a live pgvector container and fails the build if recall@5 drops below 0.9.
 
 ## Design decisions
 
+- **Hybrid retrieval fuses with RRF, not score-mixing.** Vector cosine and BM25 live on incomparable scales, so blending their raw scores needs fragile per-corpus tuning. Reciprocal Rank Fusion instead combines *ranks* — each chunk scores `Σ 1/(60 + rank)` over the legs it appears in — which needs no calibration and rewards chunks both legs agree on. Each leg runs in its own engine (NumPy cosine / SQLite FTS5 / Postgres GIN); the retriever pulls a deeper candidate pool from each, then fuses.
 - **Embedder identity is persisted and enforced.** Vectors from different embedders live in unrelated spaces; querying an OpenAI-built index with hash vectors doesn't error mathematically — it just returns garbage. The store records which embedder built it and the retriever refuses a mismatch with an actionable message. Silent failure → loud failure.
 - **Brute force is a feature at SQLite scale.** Exact cosine over a few thousand chunks is milliseconds with NumPy and has zero recall loss; ANN indexes buy speed at scale, not correctness. The pgvector backend adds HNSW when the corpus outgrows brute force.
 - **Chunks carry their title.** Each chunk is prefixed with its document title before embedding, so a chunk ripped out of context still knows what it's about.
@@ -137,14 +141,14 @@ The bundled corpus is small and topically distinct, so even the lexical fallback
 ```text
 src/docqa/
 ├── server.py            # FastMCP server + tool definitions
-├── retriever.py         # embed query -> store search, with embedder guard
+├── retriever.py         # hybrid/vector/lexical modes + RRF fusion, embedder guard
 ├── embeddings.py        # OpenAIEmbedder | HashingEmbedder (keyless fallback)
 ├── chunking.py          # word windows with overlap
 ├── config.py            # env-driven settings (.env aware)
 ├── store/
-│   ├── base.py          # VectorStore contract + embedder guard
-│   ├── sqlite_store.py  # embedded, exact brute-force cosine
-│   └── pgvector_store.py# Postgres + pgvector, HNSW
+│   ├── base.py          # VectorStore contract (vector + lexical) + embedder guard
+│   ├── sqlite_store.py  # embedded: brute-force cosine + FTS5 BM25
+│   └── pgvector_store.py# Postgres: pgvector HNSW + GIN full-text
 ├── ingest/
 │   ├── pubmed.py        # NCBI E-utilities fetcher (keyless, rate-limited)
 │   ├── pipeline.py      # chunk -> embed -> upsert, content-hash idempotent
@@ -161,7 +165,7 @@ tests/                   # unit + store battery + MCP stdio round-trip
 - [x] SQLite and pgvector backends behind one contract
 - [x] Idempotent ingestion + PubMed fetcher
 - [x] Eval harness with CI recall gate
-- [ ] Hybrid retrieval (BM25 + vector, reciprocal rank fusion)
+- [x] Hybrid retrieval (BM25 + vector, reciprocal rank fusion)
 - [ ] Cross-encoder reranking stage
 - [ ] More corpus adapters (arXiv, EDGAR)
 - [ ] Bearer-token auth for the HTTP transport
