@@ -39,21 +39,25 @@ def ping() -> str:
 
 
 @mcp.tool()
-def search_documents(query: str, k: int = 5) -> list[dict]:
-    """Semantic search over the indexed document corpus.
+def search_documents(query: str, k: int = 5, mode: str = "hybrid") -> list[dict]:
+    """Search the indexed document corpus.
 
     Returns the k best-matching text chunks, each with its source metadata:
-    doc_id, chunk_index, title, url, the chunk text, and a relevance score in
-    [0, 1] (higher is better). Results may include multiple chunks from the
-    same document. Use fetch_document with a result's doc_id to read the full
-    source document.
+    doc_id, chunk_index, title, url, the chunk text, and a relevance score
+    (higher is better; scores are comparable within one response, not across
+    modes). Results may include multiple chunks from the same document. Use
+    fetch_document with a result's doc_id to read the full source document.
 
     Args:
         query: A natural-language question or search phrase.
         k: How many chunks to return (default 5, max 25).
+        mode: 'hybrid' (default) fuses semantic and keyword search — best for
+            most questions. 'vector' is semantic-only — best for paraphrased
+            or conceptual questions. 'lexical' is keyword-only — best when the
+            exact term must appear (identifiers, drug names, error codes).
     """
     k = max(1, min(int(k), MAX_K))
-    return [result.to_dict() for result in _retriever().search(query, k)]
+    return [result.to_dict() for result in _retriever().search(query, k, mode=mode)]
 
 
 @mcp.tool()
