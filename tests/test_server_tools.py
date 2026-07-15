@@ -1,5 +1,5 @@
 """End-to-end MCP test: spawn the real server over stdio and talk to it with a
-real MCP client session — exactly what Claude Desktop does, minus the model."""
+real MCP client session — exactly what an MCP host does, minus the model."""
 
 import json
 import os

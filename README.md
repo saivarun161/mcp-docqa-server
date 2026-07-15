@@ -4,16 +4,16 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server that gives any AI client **semantic search over a document corpus** — the retrieval half of a RAG pipeline, shipped as reusable infrastructure. Point Claude Desktop (or any MCP host) at it and the model can search, read, and cite your documents autonomously; generation stays in the client, retrieval lives here.
+An [MCP](https://modelcontextprotocol.io) server that gives any AI client **semantic search over a document corpus** — the retrieval half of a RAG pipeline, shipped as reusable infrastructure. Point any MCP host at it and the model can search, read, and cite your documents autonomously; generation stays in the client, retrieval lives here.
 
 ```text
 "What does the corpus say about the hour-1 sepsis bundle?"
         │
         ▼                      MCP (stdio / HTTP)
 ┌──────────────┐   search_documents("hour-1 sepsis bundle", k=5)   ┌───────────────┐
-│  Claude /    │ ────────────────────────────────────────────────► │ docqa server  │
-│  any MCP     │ ◄──────────────────────────────────────────────── │ embed → ANN   │
-│  host        │     top-k chunks + titles, urls, scores           │ search → rank │
+│  AI client   │ ────────────────────────────────────────────────► │ docqa server  │
+│  via any     │ ◄──────────────────────────────────────────────── │ embed → ANN   │
+│  MCP host    │     top-k chunks + titles, urls, scores           │ search → rank │
 └──────────────┘                                                   └──────┬────────┘
                                                                           │
                                                           SQLite (embedded, exact)
@@ -22,7 +22,7 @@ An [MCP](https://modelcontextprotocol.io) server that gives any AI client **sema
 
 ## Why this exists
 
-Most RAG demos hard-wire retrieval into one chatbot. Exposing retrieval through MCP inverts that: **index once, query from anywhere** — Claude Desktop, an IDE agent, a CI job, your own client. The server is deliberately boring infrastructure: typed tools, two interchangeable storage backends, pluggable embeddings, an eval harness, and loud failures where silent ones usually live (see [Design decisions](#design-decisions)).
+Most RAG demos hard-wire retrieval into one chatbot. Exposing retrieval through MCP inverts that: **index once, query from anywhere** — a desktop AI assistant, an IDE agent, a CI job, your own client. The server is deliberately boring infrastructure: typed tools, two interchangeable storage backends, pluggable embeddings, an eval harness, and loud failures where silent ones usually live (see [Design decisions](#design-decisions)).
 
 ## Features
 
@@ -54,11 +54,11 @@ You now have a working index at `data/index.db`. Talk to it over real MCP with t
 npx @modelcontextprotocol/inspector .venv/bin/docqa-server
 ```
 
-### Wire it into Claude Desktop
+### Wire it into your MCP host
 
-1. Open `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
-2. Add the block from [`claude_desktop_config.example.json`](claude_desktop_config.example.json) with **absolute paths** — hosts launch servers from their own working directory, so relative paths break.
-3. Fully restart Claude Desktop and ask: *"Search the docqa corpus: what counts as stage 2 hypertension?"*
+1. Open your MCP host's config file — each host documents its own location (commonly under the host's application-support directory).
+2. Add the block from [`mcp_host_config.example.json`](mcp_host_config.example.json) with **absolute paths** — hosts launch servers from their own working directory, so relative paths break.
+3. Fully restart the host and ask: *"Search the docqa corpus: what counts as stage 2 hypertension?"*
 
 The model will call `search_documents`, read the chunks, and answer with sources.
 
@@ -133,7 +133,7 @@ Pass `--mode vector|lexical|hybrid` to compare retrieval strategies on the same 
 - **Brute force is a feature at SQLite scale.** Exact cosine over a few thousand chunks is milliseconds with NumPy and has zero recall loss; ANN indexes buy speed at scale, not correctness. The pgvector backend adds HNSW when the corpus outgrows brute force.
 - **Chunks carry their title.** Each chunk is prefixed with its document title before embedding, so a chunk ripped out of context still knows what it's about.
 - **One behavioral battery, two backends.** The SQLite and pgvector stores pass the identical test suite (`tests/store_suite.py`), which is what "interchangeable" actually means.
-- **The MCP layer is tested with a real MCP client.** CI spawns the server over stdio and drives it with an `mcp.ClientSession` — the same handshake Claude Desktop performs — not by calling Python functions directly.
+- **The MCP layer is tested with a real MCP client.** CI spawns the server over stdio and drives it with an `mcp.ClientSession` — the same handshake a real MCP host performs — not by calling Python functions directly.
 - **Public data only.** PubMed abstracts and original sample docs. Never index proprietary or employer documents into a demo corpus.
 
 ## Project structure

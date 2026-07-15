@@ -4,7 +4,7 @@ Tool docstrings ARE the interface — the calling model reads them to decide
 when and how to use each tool, so they are written for the model, not for
 humans browsing the code.
 
-Run locally (stdio, what Claude Desktop uses):
+Run locally (stdio, what desktop MCP hosts use):
     docqa-server
 
 Run as an HTTP service (Streamable HTTP transport):
@@ -95,7 +95,7 @@ def main() -> None:
         "--transport",
         choices=["stdio", "http"],
         default="stdio",
-        help="stdio for local hosts like Claude Desktop (default); "
+        help="stdio for local desktop MCP hosts (default); "
         "http for a network-reachable Streamable HTTP server",
     )
     parser.add_argument("--host", default="127.0.0.1", help="HTTP bind host")

@@ -18,7 +18,6 @@ build/
 # Tooling caches
 .pytest_cache/
 .ruff_cache/
-.claude/
 
 # OS
 .DS_Store
