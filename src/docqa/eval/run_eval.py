@@ -30,20 +30,20 @@ def load_testset(path: str | Path) -> list[dict]:
     return cases
 
 
-def ranked_doc_ids(retriever: Retriever, question: str, k: int) -> list[str]:
+def ranked_doc_ids(retriever: Retriever, question: str, k: int, mode: str = "hybrid") -> list[str]:
     """Distinct doc ids in retrieval order (best chunk decides a doc's rank)."""
     seen: list[str] = []
-    for result in retriever.search(question, k=k):
+    for result in retriever.search(question, k=k, mode=mode):
         if result.doc_id not in seen:
             seen.append(result.doc_id)
     return seen
 
 
-def evaluate(retriever: Retriever, cases: list[dict], k: int = 5) -> dict:
+def evaluate(retriever: Retriever, cases: list[dict], k: int = 5, mode: str = "hybrid") -> dict:
     ranks: list[int | None] = []
     rows = []
     for case in cases:
-        docs = ranked_doc_ids(retriever, case["question"], k)
+        docs = ranked_doc_ids(retriever, case["question"], k, mode=mode)
         rank = docs.index(case["expected_doc_id"]) + 1 if case["expected_doc_id"] in docs else None
         ranks.append(rank)
         rows.append((case["question"], case["expected_doc_id"], rank))
@@ -67,6 +67,12 @@ def main() -> None:
     parser.add_argument("--testset", default=None, help="path to testset .jsonl")
     parser.add_argument("--k", type=int, default=5, help="retrieval depth per question")
     parser.add_argument(
+        "--mode",
+        choices=["hybrid", "vector", "lexical"],
+        default="hybrid",
+        help="retrieval mode to evaluate (default: hybrid)",
+    )
+    parser.add_argument(
         "--min-recall5",
         type=float,
         default=None,
@@ -81,9 +87,9 @@ def main() -> None:
             cases = load_testset(path)
 
     retriever = Retriever()
-    report = evaluate(retriever, cases, k=args.k)
+    report = evaluate(retriever, cases, k=args.k, mode=args.mode)
 
-    print(f"\nRetrieval eval — {report['n']} questions, k={args.k}")
+    print(f"\nRetrieval eval — {report['n']} questions, k={args.k}, mode={args.mode}")
     print(f"store={retriever.store.backend}  embedder={retriever.embedder.id}\n")
     for question, expected, rank in report["rows"]:
         marker = f"rank {rank}" if rank else "MISS"
