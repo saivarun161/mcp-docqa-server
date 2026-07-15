@@ -48,10 +48,22 @@ def run_store_battery(store: VectorStore):
     # -- k larger than the corpus is fine ----------------------------------
     assert len(store.search(query, k=50)) == len(DOCS)  # one chunk per tiny doc
 
-    # -- re-upsert replaces, never duplicates -------------------------------
+    # -- lexical search finds exact keywords and ranks the right doc first ---
+    lexical = store.lexical_search("espresso grind pressure", k=2)
+    assert lexical, "lexical_search returned nothing for indexed keywords"
+    assert lexical[0].doc_id == "doc-espresso"
+    assert lexical[0].title == "Espresso extraction"
+    assert len(lexical) <= 2
+    if len(lexical) == 2:
+        assert lexical[0].score >= lexical[1].score
+    assert store.lexical_search("zzzunindexedterm", k=5) == []
+    assert store.lexical_search("!!! ???", k=5) == []  # no tokens -> no results
+
+    # -- re-upsert replaces, never duplicates (in the FTS leg too) -----------
     before = store.stats()["chunks"]
     _index(store, embedder, [DOCS[0]])
     assert store.stats()["chunks"] == before
+    assert len(store.lexical_search("hypertension", k=10)) == 1
 
     # -- content hash bookkeeping -------------------------------------------
     assert store.doc_content_hash("doc-kafka") == content_hash(DOCS[1])

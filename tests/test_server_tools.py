@@ -73,6 +73,14 @@ async def test_full_mcp_round_trip(indexed_db):
             assert not found.isError
             assert "sample-001" in _text_of(found)
 
+            # explicit lexical mode is accepted and still finds the right doc
+            lexical = await session.call_tool(
+                "search_documents",
+                {"query": "ICD-10 diagnosis coding", "k": 3, "mode": "lexical"},
+            )
+            assert not lexical.isError
+            assert "sample-006" in _text_of(lexical)
+
             doc = await session.call_tool("fetch_document", {"doc_id": "sample-001"})
             assert not doc.isError
             payload = json.loads(_text_of(doc))
