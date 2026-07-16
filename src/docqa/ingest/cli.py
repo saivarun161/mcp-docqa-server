@@ -1,6 +1,7 @@
 """Command-line entry points for corpus acquisition and indexing.
 
 docqa-ingest fetch --query "semaglutide cardiovascular outcomes" --max-docs 100
+docqa-ingest fetch --source arxiv --query "retrieval augmented generation"
 docqa-ingest index --corpus data/corpus.jsonl
 docqa-ingest index --sample          # bundled demo corpus, no key needed
 docqa-ingest stats
@@ -14,13 +15,15 @@ from pathlib import Path
 from ..embeddings import get_embedder
 from ..sampledata import sample_corpus_path
 from ..store import get_store
+from . import arxiv, pubmed
 from .pipeline import index_documents, load_corpus_jsonl
-from .pubmed import fetch_corpus
+
+_FETCHERS = {"pubmed": pubmed.fetch_corpus, "arxiv": arxiv.fetch_corpus}
 
 
 def _cmd_fetch(args: argparse.Namespace) -> int:
-    print(f"Searching PubMed for: {args.query!r} (max {args.max_docs} docs)")
-    docs = fetch_corpus(args.query, max_docs=args.max_docs)
+    print(f"Searching {args.source} for: {args.query!r} (max {args.max_docs} docs)")
+    docs = _FETCHERS[args.source](args.query, max_docs=args.max_docs)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:
@@ -71,8 +74,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="docqa-ingest", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    fetch = sub.add_parser("fetch", help="download a public corpus from PubMed")
-    fetch.add_argument("--query", required=True, help="PubMed search query")
+    fetch = sub.add_parser("fetch", help="download a public corpus (PubMed or arXiv)")
+    fetch.add_argument("--query", required=True, help="search query")
+    fetch.add_argument(
+        "--source", choices=["pubmed", "arxiv"], default="pubmed", help="corpus source"
+    )
     fetch.add_argument("--max-docs", type=int, default=100)
     fetch.add_argument("--out", default="data/corpus.jsonl")
     fetch.set_defaults(func=_cmd_fetch)
