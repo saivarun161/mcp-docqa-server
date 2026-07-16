@@ -31,7 +31,7 @@ Most RAG demos hard-wire retrieval into one chatbot. Exposing retrieval through 
 - **Two vector stores, one contract**: embedded **SQLite** (zero infrastructure, exact brute-force cosine + FTS5) and **Postgres + pgvector** (HNSW index + GIN full-text, production posture). Both pass the same behavioral test battery.
 - **Pluggable embeddings**: OpenAI `text-embedding-3-small`, or a deterministic keyless hashing embedder so a fresh clone works with **no API key, no database, no network**.
 - **Idempotent ingestion**: per-document content hashes mean re-runs skip unchanged docs — nothing gets re-embedded (or re-billed) by accident.
-- **Corpus fetcher** for PubMed abstracts via the keyless NCBI E-utilities API (rate-limit aware).
+- **Corpus fetchers** for PubMed abstracts (NCBI E-utilities) and arXiv papers (Atom API) — both keyless and rate-limit aware, with a `--source` switch.
 - **Retrieval eval harness**: recall@k and MRR against a labeled testset, usable as a CI quality gate (`docqa-eval --min-recall5 0.9`).
 - **stdio + Streamable HTTP transports**, Dockerfile included.
 - **CI that means it**: lint, unit tests, a real MCP client round-trip over stdio, and an integration job against a live pgvector service container that ends by gating on retrieval recall.
@@ -64,15 +64,18 @@ The model will call `search_documents`, read the chunks, and answer with sources
 
 ## A real corpus
 
-Index a few hundred PubMed abstracts on any topic (keyless, public data):
+Index a few hundred abstracts on any topic from PubMed or arXiv (keyless, public data):
 
 ```bash
+# medical literature (PubMed, the default source)
 docqa-ingest fetch --query "semaglutide cardiovascular outcomes" --max-docs 200
+# or CS/ML papers (arXiv)
+docqa-ingest fetch --source arxiv --query "retrieval augmented generation" --max-docs 200
 docqa-ingest index --corpus data/corpus.jsonl
 docqa-ingest stats
 ```
 
-Any JSONL with `id`, `title`, `url`, `text` fields works — swap PubMed for arXiv, EDGAR filings, or your own notes.
+Any JSONL with `id`, `title`, `url`, `text` fields works, so beyond the built-in PubMed and arXiv adapters you can point it at EDGAR filings or your own notes.
 
 ## Production posture
 
@@ -151,6 +154,7 @@ src/docqa/
 │   └── pgvector_store.py# Postgres: pgvector HNSW + GIN full-text
 ├── ingest/
 │   ├── pubmed.py        # NCBI E-utilities fetcher (keyless, rate-limited)
+│   ├── arxiv.py         # arXiv Atom fetcher (keyless; parser is unit-tested)
 │   ├── pipeline.py      # chunk -> embed -> upsert, content-hash idempotent
 │   └── cli.py           # docqa-ingest fetch | index | stats
 ├── eval/run_eval.py     # recall@k + MRR, CI-gateable
@@ -167,7 +171,8 @@ tests/                   # unit + store battery + MCP stdio round-trip
 - [x] Eval harness with CI recall gate
 - [x] Hybrid retrieval (BM25 + vector, reciprocal rank fusion)
 - [ ] Cross-encoder reranking stage
-- [ ] More corpus adapters (arXiv, EDGAR)
+- [x] Corpus adapters: PubMed + arXiv
+- [ ] More corpus adapters (EDGAR, generic RSS/Atom)
 - [ ] Bearer-token auth for the HTTP transport
 
 ## License
