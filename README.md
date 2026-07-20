@@ -31,7 +31,7 @@ Most RAG demos hard-wire retrieval into one chatbot. Exposing retrieval through 
 - **Two vector stores, one contract**: embedded **SQLite** (zero infrastructure, exact brute-force cosine + FTS5) and **Postgres + pgvector** (HNSW index + GIN full-text, production posture). Both pass the same behavioral test battery.
 - **Pluggable embeddings**: OpenAI `text-embedding-3-small`, or a deterministic keyless hashing embedder so a fresh clone works with **no API key, no database, no network**.
 - **Idempotent ingestion**: per-document content hashes mean re-runs skip unchanged docs — nothing gets re-embedded (or re-billed) by accident.
-- **Corpus fetchers** for PubMed abstracts (NCBI E-utilities) and arXiv papers (Atom API) — both keyless and rate-limit aware, with a `--source` switch.
+- **Corpus fetchers** for PubMed abstracts (NCBI E-utilities), arXiv papers (Atom API), and any generic **RSS 2.0 / Atom 1.0 feed** (blogs, changelogs, EDGAR) — all keyless and rate-limit aware, behind one `--source` switch.
 - **Retrieval eval harness**: recall@k and MRR against a labeled testset, usable as a CI quality gate (`docqa-eval --min-recall5 0.9`).
 - **stdio + Streamable HTTP transports**, Dockerfile included.
 - **CI that means it**: lint, unit tests, a real MCP client round-trip over stdio, and an integration job against a live pgvector service container that ends by gating on retrieval recall.
@@ -71,11 +71,13 @@ Index a few hundred abstracts on any topic from PubMed or arXiv (keyless, public
 docqa-ingest fetch --query "semaglutide cardiovascular outcomes" --max-docs 200
 # or CS/ML papers (arXiv)
 docqa-ingest fetch --source arxiv --query "retrieval augmented generation" --max-docs 200
+# or any RSS/Atom feed — the query is the feed URL (blogs, changelogs, EDGAR filings)
+docqa-ingest fetch --source feed --query "https://export.arxiv.org/rss/cs.IR"
 docqa-ingest index --corpus data/corpus.jsonl
 docqa-ingest stats
 ```
 
-Any JSONL with `id`, `title`, `url`, `text` fields works, so beyond the built-in PubMed and arXiv adapters you can point it at EDGAR filings or your own notes.
+Any JSONL with `id`, `title`, `url`, `text` fields works, so beyond the built-in adapters you can point it at your own notes. The generic feed adapter auto-detects RSS 2.0 vs Atom 1.0 and strips HTML from entry bodies.
 
 ## Production posture
 
@@ -155,6 +157,7 @@ src/docqa/
 ├── ingest/
 │   ├── pubmed.py        # NCBI E-utilities fetcher (keyless, rate-limited)
 │   ├── arxiv.py         # arXiv Atom fetcher (keyless; parser is unit-tested)
+│   ├── feed.py          # generic RSS 2.0 / Atom 1.0 reader (keyless; parser unit-tested)
 │   ├── pipeline.py      # chunk -> embed -> upsert, content-hash idempotent
 │   └── cli.py           # docqa-ingest fetch | index | stats
 ├── eval/run_eval.py     # recall@k + MRR, CI-gateable
@@ -172,7 +175,8 @@ tests/                   # unit + store battery + MCP stdio round-trip
 - [x] Hybrid retrieval (BM25 + vector, reciprocal rank fusion)
 - [ ] Cross-encoder reranking stage
 - [x] Corpus adapters: PubMed + arXiv
-- [ ] More corpus adapters (EDGAR, generic RSS/Atom)
+- [x] Generic RSS 2.0 / Atom 1.0 feed adapter (reads EDGAR Atom feeds, blogs, changelogs)
+- [ ] Dedicated EDGAR adapter (CIK/form filtering on top of the feed reader)
 - [ ] Bearer-token auth for the HTTP transport
 
 ## License
