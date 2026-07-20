@@ -2,6 +2,7 @@
 
 docqa-ingest fetch --query "semaglutide cardiovascular outcomes" --max-docs 100
 docqa-ingest fetch --source arxiv --query "retrieval augmented generation"
+docqa-ingest fetch --source feed --query "https://example.com/blog/rss.xml"
 docqa-ingest index --corpus data/corpus.jsonl
 docqa-ingest index --sample          # bundled demo corpus, no key needed
 docqa-ingest stats
@@ -15,10 +16,14 @@ from pathlib import Path
 from ..embeddings import get_embedder
 from ..sampledata import sample_corpus_path
 from ..store import get_store
-from . import arxiv, pubmed
+from . import arxiv, feed, pubmed
 from .pipeline import index_documents, load_corpus_jsonl
 
-_FETCHERS = {"pubmed": pubmed.fetch_corpus, "arxiv": arxiv.fetch_corpus}
+_FETCHERS = {
+    "pubmed": pubmed.fetch_corpus,
+    "arxiv": arxiv.fetch_corpus,
+    "feed": feed.fetch_corpus,
+}
 
 
 def _cmd_fetch(args: argparse.Namespace) -> int:
@@ -74,10 +79,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="docqa-ingest", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    fetch = sub.add_parser("fetch", help="download a public corpus (PubMed or arXiv)")
-    fetch.add_argument("--query", required=True, help="search query")
+    fetch = sub.add_parser("fetch", help="download a public corpus (PubMed, arXiv, or RSS/Atom)")
     fetch.add_argument(
-        "--source", choices=["pubmed", "arxiv"], default="pubmed", help="corpus source"
+        "--query", required=True, help="search query, or the feed URL when --source feed"
+    )
+    fetch.add_argument(
+        "--source", choices=["pubmed", "arxiv", "feed"], default="pubmed", help="corpus source"
     )
     fetch.add_argument("--max-docs", type=int, default=100)
     fetch.add_argument("--out", default="data/corpus.jsonl")
